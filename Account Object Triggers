@@ -1,0 +1,273 @@
+public class AccountHandler {
+##Example 1.
+    /*Upon Account Creation if Industry is not null and having value as ‘Media’ then
+populate Rating as Hot.*/
+    public static void populateRating(List<Account> newList){
+        for(Account acc:newList){
+            if(acc.Industry != Null && acc.Industry =='Media'){
+                acc.Rating ='Hot';
+            }
+        }
+    }  
+--------------------------------------------------------------------------------
+##Example 2.
+    /*When an account inserts and CopyBillingToShipping (Custom Field) checkbox is
+checked then automatically copy account billing address into account shipping
+address.*/
+    public static void updateAddress(List<Account> newList){
+        for(Account acc:newList){
+            if(acc.CopyBillingToShipping__c && acc.BillingCity!= null
+               && acc.BillingCountry!= null && acc.BillingPostalCode != null
+               && acc.BillingState != null && acc.BillingStreet != null && acc.CopyBillingToShipping__c == True){
+                   acc.ShippingCity=acc.BillingCity;
+                   acc.ShippingCountry=acc.BillingCountry;
+                   acc.ShippingPostalCode=acc.BillingPostalCode;
+                   acc.ShippingState=acc.BillingState;
+                   acc.ShippingStreet=acc.BillingStreet;
+               }
+        }
+    }
+--------------------------------------------------------------------------------
+##Example 3.
+    /*Create a related Contact when an Account is created*/
+    public static void createContact(List<Account> newList){
+        List<contact> conList = new List<contact>();
+        for(Account acc:newList){
+            contact con = new contact();
+            con.FirstName = acc.Name; 
+            con.LastName = acc.Name;
+            con.AccountId = acc.Id;
+            conList.add(con);
+        }
+        if(!conList.isEmpty()){
+            insert conList;
+        }
+    }
+--------------------------------------------------------------------------------
+##Example 4.
+
+    /*On Account create two checkbox fields labeled as Contact and Opportunity.
+Now when a new Account record is created and if a particular Contact or
+Opportunity checkbox is checked then create that related record. Also
+Opportunity record should be created only if the Account record Active picklist is
+populated with a Yes.*/
+    public static void creatContactOrAccount(List<Account> newList){
+        list<contact> conList = new List<contact>();
+        list<opportunity> oppList = new List<opportunity>();
+        for(Account acc:newList){
+            if(acc.contact__c == true){
+                contact con = new contact();
+                con.AccountId = acc.id;
+                con.LastName = acc.Name;
+                conList.add(con);
+            }if(acc.Opportunity__c == true && acc.Ownership == 'public'){
+                opportunity opp = new opportunity();
+                opp.AccountId = acc.id;
+                opp.Name = acc.name;
+                opp.CloseDate = Date.today();
+                opp.StageName ='closed won';
+                oppList.add(opp);
+            }
+            
+        }
+        if(conList.size()>0){
+            insert conList;
+        }if(oppList.size()>0){
+            insert oppList;
+            
+        }
+    }
+--------------------------------------------------------------------------------
+##Example 5.
+
+    /*If the Account phone is updated then populate below message in description.
+Description = Phone is Updated! Old Value : XXX & New Value : XXX*/
+    public static void updateDescription(List<Account> accList,Map<Id,Account> oldMap){
+        for(Account acc:accList){
+            if(acc.Phone!=oldMap.get(acc.Id).Phone){
+                acc.Description='Phone is updated! Old Value :'+oldMap.get(acc.Id).Phone+' & New Value :'+acc.Phone;
+            }
+        }
+    }
+--------------------------------------------------------------------------------
+Example:6
+    /*Upon Account Creation or updation if Industry is not null and having value
+as ‘Media’ then populate Rating as Hot.*/
+    public static void populaterating(List<Account> newList, Map<id,Account> oldMap){
+        for(Account acc:newList){
+            if((oldMap != NULL && acc.Industry =='Media')||
+               (acc.Industry != oldmap.get(acc.id).Industry && acc.Industry =='Media')){
+                   acc.Rating ='Hot';
+               }else if(acc.Industry =='Finance'){
+                   acc.Rating ='Warm';
+               }
+        }
+    }
+--------------------------------------------------------------------------------
+
+    //parent to child update field trigger
+    /*If the Account phone is updated then populate the phone number on all
+related Contacts (Home Phone field) BY USING MAP*/
+    public static void updateRelatedConts(List<Account> newList, Map<id,Account> oldMap){
+        Map<id,Account> accMap = new Map<id,Account>();
+        for(Account acc:newList){
+            if(acc.Phone != oldMap.get(acc.Id).Phone){
+                accMap.put(acc.id,acc);
+            }
+        }
+        List<contact> conList = new List<contact>();
+        for(contact con :[SELECT id,AccountId,Phone from contact where AccountId in:accMap.keySet()]){
+            if(accMap.containskey(con.AccountId)){
+                con.phone =accMap.get(con.AccountId).phone;
+                conList.add(con);
+            }
+        }
+        if(!conList.isEmpty()){
+            update conList;
+        }
+    }
+    
+    /* The same Above Trigger By Using inner Query(Parent To Child)* are As Follow */
+    public static void updateRelatedContsInnerQuery(List<Account> newList, Map<id,Account> oldMap){
+        set<id> accIdSet = new set<id>();
+        for(Account acc:newList){
+            if(acc.Phone != oldMap.get(acc.id).Phone){
+                accIdSet.add(acc.id);
+            }
+        }
+        List<contact> conList = new List<contact>();
+        for(Account a:[select id,Phone,(select id,phone from contacts)from Account where Id in:accIdSet]){
+            if(a.contacts != null){
+                for(contact con:a.contacts){
+                    con.Phone = a.Phone;
+                    conList.add(con);
+                }
+            }
+        }
+        if(!conList.isEmpty()){
+            update conList;
+        }
+        
+    }
+----------------------------------------------------------------------------------------------------
+ /*if account description is updated the update the account related opportunity description*/
+    public static void updateopportunityDescription(List<Account> newList, Map<id,Account> oldMap){
+        set<id> acIdSet = new set<id>();
+        for(Account ac:newList){
+            if(ac.Description != oldMap.get(ac.id).Description){
+                acIdSet.add(ac.id);  
+            }
+        }
+        List<opportunity> opList = new List<opportunity>();
+        for(Account Acc:[select id,Description,(select id,Description from opportunities)from account where id in:acIdSet]){
+            if(Acc.opportunities != null){
+                for(opportunity op:Acc.opportunities){ 
+                    op.Description = Acc.Description;
+                    opList.add(op);
+                } 
+            }
+        }
+        if(!opList.isEmpty()){
+            update opList;
+        }
+    }
+------------------------------------------------------------------------------------------------------
+  /*if account checkbox ISActive__c is updated the update the account related contact checkbox*/    
+    public static void updateContactCheckbox(List<Account> newList,map<id,Account> oldmap){
+        map<id,account> accMap = new map<id,Account>();
+        for(Account acc:newList){
+            if(oldMap != null && acc.IsActive__c != oldMap.get(acc.id).IsActive__c){
+                accMap.put(acc.id,acc);
+            }
+        }
+        List<contact> conList = new List<contact>();
+        for(contact con:[SELECT id,AccountId,isActive__c,CreatedDate from contact where AccountId in:accMap.keySet() AND CreatedDate = LAST_N_DAYS:2]){
+            if(accMap.containsKey(con.AccountId)){
+                con.IsActive__c = accMap.get(con.AccountId).IsActive__c;
+                conList.add(con);
+            }
+        }
+        if(!conList.isEmpty()){
+            update conList;
+        }
+    }
+--------------------------------------------------------------------------------
+
+    /*Write a trigger on Account when Account Active field is updated from ‘Yes’
+to ‘No’ then check all opportunities associated with the account. Update all
+Opportunities Stage to close lost if stage not equal to close won.*/
+    public static void updateOpportunityStage(List<Account> newList, Map<id,Account> oldMap){
+        Map<id,Account> accMap = new Map<id,Account>();
+        for(Account acc:newList){
+            if(oldMap != null && acc.Active__c=='No' && acc.Active__c != oldMap.get(acc.id).Active__c){
+                accMap.put(acc.id,acc);
+            }
+        }
+        List<opportunity> oppList = new List<opportunity>();
+        for(opportunity opp:[SELECT id,AccountId,StageName from opportunity where AccountId in:accMap.keySet()]){
+            if(accMap.containsKey(opp.AccountId) && opp.StageName !='Closed Won' && opp.StageName !='Closed Lost'){
+                opp.StageName = 'Closed Lost';
+                oppList.add(opp);
+            } 
+        }
+        if(!oppList.isEmpty()){
+            update oppList;
+        }
+    }
+-------------------------------------------------------------------------------------------------
+
+    /* if account is inserted the give the account related contact on Account in before update*/
+    public static void CountOfContact(List<Account> newList){
+        set<id> acIdSet = new set<id>();
+        Map<id,Integer> conMap = new Map<id,Integer>();
+        for(Account Acc:newList){
+            acIdSet.add(Acc.id);
+            system.debug('--1--'+acIdSet); 
+            conMap.put(acc.Id, 0);
+            System.debug('--1--'+conMap);
+        }
+        for(AggregateResult Result: [SELECT AccountId, COUNT(id)conCount from contact where AccountId in:acIdSet Group by AccountId]){
+            Id AccountId =(Id)Result.get('AccountId');
+            system.debug('--2--'+AccountId);
+            Integer contactCount =(Integer)result.get('conCount');
+            system.debug('--2--'+contactCount);
+            conMap.put(AccountId,contactCount);
+            system.debug('--3--'+conMap);
+        }
+        for(Account Acc:newList){
+            if(conMap.containsKey(Acc.id)){
+                Acc.No_Of_Contacts__c = conMap.get(Acc.id); 
+            }
+        }
+    }
+----------------------------------------------------------------------------------------------------------------------
+*/ If Account Amount__c is updated then copy that amount to the Account Description And Also in Opportunity Description
+public static void copyAccountDescription(List<Account> newList, Map<id,Account> oldMap){
+        map<id,Account> accidSet = new Map<id,Account>();
+        for(Account Acc:newList){
+            if(Acc.Amount__c != oldMap.get(Acc.id).Amount__c){
+                accidSet.put(Acc.id,Acc);
+            }
+        }
+        List<contact> conList = new List<contact>();
+        List<opportunity> opportunityList = new List<opportunity>();
+        for(contact con:[SELECT id,AccountId,Description From contact where AccountId in:accidSet.keySet()]){
+            if(accidSet.containsKey(con.AccountId)){
+                con.Description = accidSet.get(con.AccountId).Amount__c;
+                conList.add(con);
+            }
+        }
+        for(opportunity opp:[SELECT id,AccountId,Description from opportunity where AccountId in:accidSet.keySet()]){
+            opp.Description = accidSet.get(opp.AccountId).Amount__c;
+            opportunityList.add(opp);
+        }
+        if(!conList.isEmpty()){
+            update conList;
+        }
+        if(!opportunityList.isEmpty()){
+            update opportunityList;
+        }
+    }
+    
+    
+}
