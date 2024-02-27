@@ -1,0 +1,226 @@
+public class contactHandler {
+    //Create Account When Contact is Created
+    public static void createAccount(List<Contact> newContacts){
+        List<Account> newAccounts = new List<Account>();
+        for (Contact newContact : newContacts) {
+            Account newAccount = new Account();
+            newAccount.Name = newContact.LastName;
+            newAccounts.add(newAccount);
+        }
+        
+        if (!newAccounts.isEmpty()) {
+            insert newAccounts;
+        }
+    }
+    
+    //Whenever the contact Phone Is Updte Then Update Account Phone
+    public static void updateAccountPhone(List<contact> newList, Map<id,contact> oldMap){
+        map<id,contact> conMap = new Map<id,contact>(); 
+        for(contact con:newList){
+            if(con.AccountId != NULL && con.Phone != oldMap.get(con.id).phone){
+                conMap.put(con.AccountId,con);
+            }
+        }
+        List<Account> accountList = new List<account>();
+        for(Account acc :[select id,phone from Account where id in:conMap.keySet()]){
+            if(conMap.containsKey(acc.id)){
+                acc.Phone = conMap.get(acc.id).Phone; 
+                accountList.add(acc);
+            }	
+        }
+        update accountList;
+    }
+    
+    //if account contain already contact and if we are inserting another contact in that 
+    //account then copy the name of both contact in account description apex trigger/                                                                                                              
+    public static void updateAccountDescription(List<Contact> newList) {
+        Set<Id> conIdSet = new Set<Id>();
+        List<Account> accListToUpdate = new List<Account>();
+        
+        for(Contact con : newList) {
+            if (con.AccountId != null) {
+                conIdSet.add(con.AccountId);
+            }
+        }
+        Map<Id, List<String>> conMap = new Map<Id, List<String>>();
+        for (Contact con : [SELECT Id, AccountId, LastName FROM Contact WHERE AccountId IN :conIdSet]){
+            if (!conMap.containsKey(con.AccountId)) {
+                conMap.put(con.AccountId, new List<String>());
+            }
+            conMap.get(con.AccountId).add(con.LastName);
+            system.debug('--1--'+conMap);
+        }
+        if(!conMap.isEmpty()){ 
+            for(Account acc : [SELECT Id, Description From Account Where Id IN : conMap.keySet()]){
+                system.debug('--2--'+acc);
+                if(conMap.containsKey(acc.Id)){
+                    List<String> contactNameList = conMap.get(acc.Id);
+                    system.debug('--3--'+contactNameList);
+                    acc.Description = String.join(contactNameList, ',');
+                    system.debug('--4--'+String.join(contactNameList, ','));
+                    accListToUpdate.add(acc);
+                    system.debug('--5--'+accListToUpdate);
+                }
+            }
+        }
+        if(!accListToUpdate.isEmpty()){
+            update accListToUpdate;
+        }
+    }
+    
+    //if we are inserting new contact then the contact related Account Phone Field is same As Contact Phone Field
+    public static void updateAccountphone(list<contact> newList){
+        Set<Id> accountIds = new Set<Id>();
+        for (Contact con :newList) {
+            accountIds.add(con.AccountId);
+        }
+        List<Account> accountsToUpdate = new List<Account>();
+        Map<Id, Account> accountsMap = new Map<Id, Account>([SELECT Id, Phone FROM Account WHERE Id IN :accountIds]);
+        for (Contact con : newList) {
+            if (accountsMap.containsKey(con.AccountId) && accountsMap.get(con.AccountId).Phone != null) {
+                con.Account.Phone = accountsMap.get(con.AccountId).Phone;
+                accountsToUpdate.add(con.Account);
+            }
+        }
+        update accountsToUpdate;
+    }
+    
+    //If Account Dosent Have contact then add Error
+    public static void ErrorAccount(List<contact> newList){
+        for (Contact con : newList) {
+            if (con.AccountId == null) {
+                con.addError('contact Must Have Account');
+            } 
+        }
+    }
+    
+    /*if we are going to create new contact then show the no Of Opportunity of that related account on contact*/
+    public static void showNoOfOpportunity(List<contact> newList){
+        set<id> conIdSet = new set<id>();
+        for(contact con:newList){
+            if(con.AccountId != null){
+                conIdSet.add(con.AccountId);
+            }  
+            system.debug('--1--'+conIdSet);
+        } 
+        Map<Id,Integer> accountOpportunityCountMap = new Map<Id,Integer>();
+        for(AggregateResult result:[SELECT AccountId, COUNT(Id) oppCount FROM Opportunity WHERE AccountId IN :conIdSet GROUP BY AccountId]){
+            Id AccountId =(Id)result.get('AccountId');
+            system.debug('--2--'+AccountId);
+            Integer oppCount =(Integer)result.get('oppCount');
+            system.debug('--3--'+oppCount);
+            accountOpportunityCountMap.put(AccountId,oppCount);
+            system.debug('--4--'+accountOpportunityCountMap);
+        }
+        for(contact con:newList){
+            if(accountOpportunityCountMap.containsKey(con.AccountId)){
+                con.No_Of_Opportunity__c = accountOpportunityCountMap.get(con.AccountId);
+            }
+        }
+    }
+    
+    /*count of contact on Account By using roll up summry */
+    public static void noOfContactRollUp(List<contact> newList ,Map<id,contact> oldMap){
+        set<id> accIds = new set<id>();
+        for(contact con:newList){
+            system.debug('--1--'+con);
+            if(oldMap != null){
+                system.debug('--2--'+oldMap);
+                contact oldcon = oldMap.get(con.id);
+                system.debug('--3--'+oldcon);
+                if(oldcon.AccountId != con.AccountId){
+                    //	 system.debug('--4--'+oldcon.AccountId != con.AccountId);
+                    accIds.add(oldcon.AccountId);
+                    system.debug('--5--'+accIds);
+                    accIds.add(con.AccountId);
+                    system.debug('--6--'+accIds);
+                }else{
+                    accIds.add(con.AccountId);
+                    system.debug('--7--'+accIds);
+                }
+            }else{
+                accIds.add(con.AccountId);
+                system.debug('--8--'+accIds);
+            }
+        }
+        map<id,Account> accMapToUpdate = new Map<id,Account>();
+        if(!accIds.IsEmpty()){
+            List<AggregateResult> Result = [SELECT AccountId aId,COUNT(Id)conCount from contact where AccountId in:accIds group by AccountId];
+            if(!Result.isEmpty()){
+                for(AggregateResult agr:Result){
+                    Account Acc = new Account();
+                    Acc.id = (Id)agr.get('aId');
+                    Acc.No_Of_Contacts__c = (Integer)agr.get('conCount');
+                    accMapToUpdate.put(Acc.id,Acc);
+                } 
+            } else{
+                for(Id accId:accIds){
+                    Account Acc = new Account();
+                    Acc.Id = accId;
+                    Acc.No_Of_Contacts__c = 0;
+                    accMapToUpdate.put(Acc.id,Acc);
+                }
+            }
+            if(!accMapToUpdate.isEmpty()){
+                update accMapToUpdate.values();  
+            }
+        }
+        
+    }
+    //if contact phone is update the copy the phone of that related contact account on that account description
+    public static void updateAccountphone2(list<contact> newList,Map<id,contact>oldMap){
+        Set<Id> accountIds = new Set<Id>();
+        for (Contact con :newList) {
+            if(con.AccountId != null && con.Phone != oldMap.get(con.id).Phone){
+                accountIds.add(con.AccountId);
+            }
+        }
+        List<Account> accountsToUpdate = new List<Account>();
+        Map<Id, Account> accountsMap = new Map<Id, Account>([SELECT Id,description, Phone FROM Account WHERE Id IN :accountIds]);
+        for (account Acc : accountsMap.values()) {
+            if (accountsMap.containsKey(Acc.id) && accountsMap.get(Acc.id).Phone != null) {
+                Acc.Description = accountsMap.get(Acc.id).Phone ;
+                accountsToUpdate.add(Acc);
+            }
+        }
+        update accountsToUpdate;
+    }
+    
+    //Count of contact on Account Trigger After Insert
+    public static void countOfContact(List<contact>conList){
+        set<id> idSet = new Set<id>();
+        for(Contact con : conList) {
+            idSet.add(con.AccountId);
+        }
+        List<Account> accountsToUpdate = [SELECT Id,No_Of_Contacts__c,(SELECT Id FROM Contacts) FROM Account WHERE Id IN:idSet];
+        for(Account acc : accountsToUpdate){
+            acc.No_Of_Contacts__c = acc.Contacts.size();
+        }
+        update accountsToUpdate;
+    }
+    
+     //The Unique Name Sorting
+    public static void uniqueNameSorting(){
+        List<string> names = new List<string>();
+        names.add('jhon');
+        names.add('Alice');
+        names.add('Bob');
+        names.add('charlie');
+        names.add('David');
+        system.debug(names);
+        
+        set<String> uniqueName = new Set<String>(names);
+        system.debug(uniqueName);
+        
+        Map<integer,string> lengthToNameMap = new Map<integer,String>();
+        
+        for(String name:uniqueName){
+            lengthToNameMap.put(name.length(), name);
+            system.debug(lengthToNameMap);
+        }
+        List<String> sortedNames = new List<String>(lengthToNameMap.values());
+        sortedNames.sort();
+        system.debug('sortedNames-->'+sortedNames);
+    }
+    
+}
