@@ -222,5 +222,28 @@ public class contactHandler {
         sortedNames.sort();
         system.debug('sortedNames-->'+sortedNames);
     }
-    
+
+//write trigger when contact Phone is change then copy the old phone of contact in contact related Account
+   public static void copyOldPhone(List<contact> newList, Map<id,contact> oldMap){
+        map<id,contact> conMap = new map<id,contact>();
+        List<String> oldConList = new List<String>();
+        for(contact con:newList){
+            if(con.AccountId != null && con.Phone != oldMap.get(con.id).Phone){
+                oldConList.add(oldMap.get(con.id).phone);
+                conMap.put(con.AccountId,con);
+            }
+        }
+            List<Account> accList = new List<Account>();
+            for(Account acc:[SELECT id,phone from Account Where id in:conMap.keySet()]){
+                if(conMap.containsKey(acc.id)){
+                   acc.Phone = oldConList[0] ;
+                    accList.add(acc);
+                }
+            }
+            if(!accList.isEmpty()){
+                update accList;
+                
+            }
+           }
+    }  
 }
